@@ -1,0 +1,49 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "declaration": true,
+    "outDir": "./dist",
+    "strict": true,
+	// enable strict null checks as a best practice
+	"strictNullChecks": true,
+	// Search under node_modules for non-relative imports.
+	"moduleResolution": "node",
+	// Process & infer types from .js files.
+	"allowJs": true,
+	// Don't emit; allow Babel to transform files.
+	"noEmit": false,
+	"esModuleInterop": true,
+	// use typescript to transpile jsx to js
+	"jsx": "react",
+	"baseUrl": "./",
+	"paths": {
+		"*": ["src/*"],
+		"@components/*": ["src/Components/*"],
+	},
+	"lib": [
+		"es2015",
+		"es6",
+		"es2016.array.include",
+		"es2017.object",
+		"es2019",
+		"es2020"
+	],
+	"removeComments": true,
+	"alwaysStrict": true,
+	"allowUnreachableCode": false,
+	"noImplicitAny": false,
+	"noImplicitThis": true,
+	"noUnusedLocals": false,
+	"noUnusedParameters": true,
+	"noImplicitReturns": true,
+	"noFallthroughCasesInSwitch": true,
+	"forceConsistentCasingInFileNames": true,
+	"importHelpers": true,
+	"experimentalDecorators": true,
+	"emitDecoratorMetadata": true,
+	"resolveJsonModule": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "**/__tests__/*"]
+}
