@@ -2,17 +2,21 @@ import EventEmitter from 'eventemitter3';
 
 type Constructor<T = {}> = {new (...args: any[]): T};
 
+interface GenericObject {
+	[key:string]: any;
+}
+
 const InfoSymbol = Symbol('Data');
 const StoredDataSymbol = Symbol('Data');
 const CurrentDataSymbol = Symbol('CurrentData');
 const ChangeEventSymbol = Symbol('ChangeEvent');
 const PropsInfoSymbol = Symbol('PropsInfo');
 
-const modelBuildData = (model) => {
+const modelBuildData = (model: Model): GenericObject} => {
 	return model[CurrentDataSymbol] = model[CurrentDataSymbol] || (model[StoredDataSymbol].length > 0 ? model[StoredDataSymbol][0] : {});
 }
 
-export class Model {
+class Model {
 	static InfoData = InfoSymbol;
 	static StoredData = StoredDataSymbol;
 	static CurrentData = CurrentDataSymbol;
@@ -22,6 +26,8 @@ export class Model {
 	[StoredDataSymbol]: object[] = [];
 	[CurrentDataSymbol]: object|null = null;
 	[ChangeEventSymbol]: EventEmitter = new EventEmitter();
+
+    static [PropsInfoSymbol]: GenericObject = {};
 	
 	*[Symbol.iterator]() {
 		let value: number|undefined = 0;
@@ -34,7 +40,15 @@ export class Model {
 		}
 	}
 	
-	static Prop = function (propInfo: object = {}): any {
+	static Props = function(this: typeof Model, ...args: string[]) {
+		if (args.length == 0) {
+			return Object.assign({}, this[PropsInfoSymbol]);
+		}
+		
+		return Object.fromEntries(args.map((value: string) => [value, this[PropsInfoSymbol][value]]));
+	}
+	
+	static Prop = function (propInfo: GenericObject = {}): any {
 		return function (
 			target: Object,
 			propertyKey: string,
@@ -43,16 +57,11 @@ export class Model {
 			propInfo = Object.assign({name: propertyKey}, propInfo);
 			const propName = propInfo['name'] !== undefined && typeof propInfo['name'] === 'string' ? propInfo['name'] : propertyKey;
 			
-			let props = target.constructor[PropsInfoSymbol] || Object.defineProperty(target.constructor, PropsInfoSymbol, {
-				value: {},
-				enumerable: false,
-				configurable: true,
-				writable: true,
-			})[PropsInfoSymbol];
+			let props = (target.constructor as typeof Model)[PropsInfoSymbol];
 			
 			if (props === Object.getPrototypeOf(target.constructor)[PropsInfoSymbol]) {
 				props = Object.assign({}, props);
-				target.constructor[PropsInfoSymbol] = props;
+				(target.constructor as typeof Model)[PropsInfoSymbol] = props;
 			}
 			
 			Object.keys(props).filter(value => value == propertyKey).forEach(value => delete props[value]);
@@ -66,7 +75,12 @@ export class Model {
 				},
 				get: function(this: Model) {
 					const currentData = modelBuildData(this);
-					return currentData[propName] || (propInfo['defaultValue'] !== undefined? propInfo['defaultValue'] : undefined);
+
+                    if (propName in currentData && currentData[propName] !== undefined) {
+                        return currentData[propName];
+					}
+
+					return propInfo['defaultValue'] !== undefined? propInfo['defaultValue'] : undefined;
 				},
 				enumerable: true,
 				configurable: true
