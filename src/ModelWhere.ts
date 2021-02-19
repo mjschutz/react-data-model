@@ -4,20 +4,35 @@ type Constructor<T = {}> = {new (...args: any[]): T};
 
 const WhereInfoSymbol = Symbol('WhereInfoSymbol');
 const QuerySymbol = Symbol('QuerySymbol');
-const MainQuerySymbol = Symbol('MainQuerySymbol');
 
 class ModelWhere {
 	static [WhereInfoSymbol]: { props: {[key:string]: any}; } = { props: {} };
-	[QuerySymbol]: { [key:string]: any; } = {};
-	[MainQuerySymbol]: { [key:string]: any; } = {};
+	[QuerySymbol]: { [key:string]: any; } = { $and: {} };
 	
-	static Op = function(opName) {
+	function Op(opName: string) {
 		return function (
 			target: Object, 
-			propertyKey: string, 
-			propertyDescriptor?: PropertyDescriptor
+			propertyKey: string
 		): any {
-			
+			const WhereInfo = (target.constructor as typeof ModelWhere)[WhereInfoSymbol];
+			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
+			const objBuilder = prop.objBuilder;
+			prop.objBuilder = (test: Test) => ({
+				get [`$${opName}`]() {
+					return objBuilder === null ? prop.valueMap.get(test) : objBuilder(test);
+				}
+			})
+
+			return {
+				set: function (val: any) {
+					prop.valueMap.set(this, val);
+				},
+				get: function(): any {
+					return prop.valueMap.get(this);
+				},
+				enumerable: true,
+				configurable: true
+			}
 		}
 	}
 	
@@ -39,12 +54,24 @@ class ModelWhere {
 				static [WhereInfoSymbol] = {
 					props: model.reduce((retObj: object, currentModel: Model) => Object.assign(retObj, currentModel[Model.PropsInfo]), {})
 				}
+				
+				[QuerySymbol]: { [key:string]: any; } = { $and: {} };
 			}
 		}
 	}
 	
-	static Or = function(...args: string[]) {
-		
+	static Or = function(...model: Model[]) {
+		return function<T extends Constructor>(
+			constructor: T
+		) {
+			return class extends constructor {
+				static [WhereInfoSymbol] = {
+					props: model.reduce((retObj: object, currentModel: Model) => Object.assign(retObj, currentModel[Model.PropsInfo]), {})
+				}
+				
+				[QuerySymbol]: { [key:string]: any; } = { $or: {} };
+			}
+		}
 	}
 	
 	static query = function(modelWhere: ModelWhere) {
