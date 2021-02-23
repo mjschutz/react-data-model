@@ -3,23 +3,34 @@ import {Model} from './Model';
 type Constructor<T = {}> = {new (...args: any[]): T};
 
 const WhereInfoSymbol = Symbol('WhereInfoSymbol');
+const PropInfoSymbol = Symbol('WherePropInfoSymbol');
 const QuerySymbol = Symbol('QuerySymbol');
 
 class ModelWhere {
 	static [WhereInfoSymbol]: { props: {[key:string]: any}; } = { props: {} };
-	[QuerySymbol]: { [key:string]: any; } = { $and: {} };
+    static [PropInfoSymbol]: { [key:string]: any } = { };
+	[QuerySymbol]: { [key:string]: any; } = (()=> {
+		const currentWhere = this;
+		const currentClass = (this.constructor as typeof ModelWhere);
+		
+		return ({
+			get ['$and']() {
+				return Object.entries(currentClass[PropInfoSymbol]).reduce((obj, [key, value]) => Object.assign(obj, {[key]: value.objBuilder(currentWhere)}), {});
+			}
+		});
+	})();
 	
-	function Op(opName: string) {
+	static Op = (opName: string) => {
 		return function (
 			target: Object, 
 			propertyKey: string
 		): any {
-			const WhereInfo = (target.constructor as typeof ModelWhere)[WhereInfoSymbol];
+			const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
 			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
 			const objBuilder = prop.objBuilder;
-			prop.objBuilder = (test: Test) => ({
+			prop.objBuilder = (modelWhere: ModelWhere) => ({
 				get [`$${opName}`]() {
-					return objBuilder === null ? prop.valueMap.get(test) : objBuilder(test);
+					return objBuilder === null ? prop.valueMap.get(modelWhere) : objBuilder(modelWhere);
 				}
 			})
 
@@ -46,36 +57,8 @@ class ModelWhere {
 	static Ge = ModelWhere.Op('ge');
 	static Le = ModelWhere.Op('le');
 	
-	static And = function(...model: Model[]) {
-		return function<T extends Constructor>(
-			constructor: T
-		) {
-			return class extends constructor {
-				static [WhereInfoSymbol] = {
-					props: model.reduce((retObj: object, currentModel: Model) => Object.assign(retObj, currentModel[Model.PropsInfo]), {})
-				}
-				
-				[QuerySymbol]: { [key:string]: any; } = { $and: {} };
-			}
-		}
-	}
-	
-	static Or = function(...model: Model[]) {
-		return function<T extends Constructor>(
-			constructor: T
-		) {
-			return class extends constructor {
-				static [WhereInfoSymbol] = {
-					props: model.reduce((retObj: object, currentModel: Model) => Object.assign(retObj, currentModel[Model.PropsInfo]), {})
-				}
-				
-				[QuerySymbol]: { [key:string]: any; } = { $or: {} };
-			}
-		}
-	}
-	
 	static query = function(modelWhere: ModelWhere) {
-		return modelWhere[MainQuerySymbol];
+		return modelWhere[QuerySymbol];
 	}
 }
 
