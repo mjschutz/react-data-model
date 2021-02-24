@@ -15,9 +15,8 @@ class ModelWhere {
 		const currentClass = this;
 		
 		return ({
-			get [`$${op}`]() {
-				return Object.values(currentClass[PropInfoSymbol]).reduce((obj, value) => Object.assign(obj, value.objBuilder(currentWhere)), {});
-			}
+			[`$${op}`]:
+				Object.values(currentClass[PropInfoSymbol]).map(value => value.objBuilder(currentWhere))
 		});
 	}
 
@@ -47,7 +46,7 @@ class ModelWhere {
 			(modelWhere: ModelWhere) => ({
 				get [`$${opName}`]() {
 					const obj = objBuilder(modelWhere);
-					return fields.reduce((retObj, key) => Object.assign(retObj, {[key]: obj[propertyKey]}), {});
+					return fields.map((key) => ({[key]: obj[propertyKey]}));
 				}
 			});
 
@@ -83,7 +82,7 @@ class ModelWhere {
 				const obj = objBuilder(modelWhere);
 
 				return ({[propertyKey]:{
-					[`$${opName}`]: obj[propertyKey]
+					get [`$${opName}`]() { return obj[propertyKey] }
 				}})
 			}
 
@@ -110,6 +109,59 @@ class ModelWhere {
 	static Ge = ModelWhere.Op('ge');
 	static Le = ModelWhere.Op('le');
 	static Ref = ModelWhere.Op('ref');
+	
+	static Replace = function(repStr: string) {
+		return function (
+			target: Object, 
+			propertyKey: string
+		): any {
+			const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
+			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
+			const objBuilder = prop.objBuilder;
+			
+			if (objBuilder === null) {
+				prop.objBuilder = (modelWhere: ModelWhere) => ({[propertyKey]:repStr.replace(/{value}/g, prop.valueMap.get(modelWhere))});
+			}
+
+			return {
+				set: function (val: any) {
+					prop.valueMap.set(this, val);
+				},
+				get: function(): any {
+					return prop.valueMap.get(this);
+				},
+				enumerable: true,
+				configurable: true
+			};
+		};
+	}
+
+	static Query = function (
+		target: Object, 
+		propertyKey: string
+	): any {
+		const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
+		const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
+		const objBuilder = prop.objBuilder;
+
+		if (objBuilder === null) {
+			prop.objBuilder = (modelWhere: ModelWhere) =>{
+				console.log(modelWhere)
+				 return prop.valueMap.get(modelWhere) ? prop.valueMap.get(modelWhere)[QuerySymbol] : {};
+			}
+		}
+		
+		return {
+			set: function (val: any) {
+				prop.valueMap.set(this, val);
+			},
+			get: function(): any {
+				return prop.valueMap.get(this);
+			},
+			enumerable: true,
+			configurable: true
+		};
+	}
 	
 	static query = function(modelWhere: ModelWhere) {
 		return modelWhere[QuerySymbol];
