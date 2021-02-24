@@ -9,16 +9,63 @@ const QuerySymbol = Symbol('QuerySymbol');
 class ModelWhere {
 	static [WhereInfoSymbol]: { props: {[key:string]: any}; } = { props: {} };
     static [PropInfoSymbol]: { [key:string]: any } = { };
-	[QuerySymbol]: { [key:string]: any; } = (()=> {
-		const currentWhere = this;
-		const currentClass = (this.constructor as typeof ModelWhere);
+	[QuerySymbol]: { [key:string]: any; } = ModelWhere.AllFields(this, 'and');
+
+	static AllFields = function(this: typeof ModelWhere, currentWhere: ModelWhere, op: string) {
+		const currentClass = this;
 		
 		return ({
-			get ['$and']() {
-				return Object.entries(currentClass[PropInfoSymbol]).reduce((obj, [key, value]) => Object.assign(obj, {[key]: value.objBuilder(currentWhere)}), {});
+			get [`$${op}`]() {
+				return Object.values(currentClass[PropInfoSymbol]).reduce((obj, value) => Object.assign(obj, value.objBuilder(currentWhere)), {});
 			}
 		});
-	})();
+	}
+
+	static Class = function(this: typeof ModelWhere, options: {[key:string]: any} = {}) {
+		let {op} = options;
+		op = op || 'and';
+		return function <T extends { new (...args: any[]): ModelWhere }>(
+			constructor: T
+		) {
+			return class extends constructor {
+				[QuerySymbol]: { [key:string]: any; } = ModelWhere.AllFields(this, op);
+			};
+		}
+	}
+
+	static AndOr = (opName: string, ...fields: string[]) => {
+		return function (
+			target: Object, 
+			propertyKey: string
+		): any {
+			const currentClass = (target.constructor as typeof ModelWhere);
+			const WhereInfo = currentClass[PropInfoSymbol];
+			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
+			const objBuilder = prop.objBuilder;
+			prop.objBuilder = fields.length === 0 ?
+			(modelWhere: ModelWhere) => (objBuilder(modelWhere)) :
+			(modelWhere: ModelWhere) => ({
+				get [`$${opName}`]() {
+					const obj = objBuilder(modelWhere);
+					return fields.reduce((retObj, key) => Object.assign(retObj, {[key]: obj[propertyKey]}), {});
+				}
+			});
+
+			return {
+				set: function (val: any) {
+					prop.valueMap.set(this, val);
+				},
+				get: function(): any {
+					return prop.valueMap.get(this);
+				},
+				enumerable: true,
+				configurable: true
+			}
+		}
+	}
+
+	static And = ModelWhere.AndOr.bind(ModelWhere, 'and');
+	static Or = ModelWhere.AndOr.bind(ModelWhere, 'or');
 	
 	static Op = (opName: string) => {
 		return function (
@@ -28,11 +75,17 @@ class ModelWhere {
 			const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
 			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
 			const objBuilder = prop.objBuilder;
-			prop.objBuilder = (modelWhere: ModelWhere) => ({
+			prop.objBuilder = objBuilder === null ? (modelWhere: ModelWhere) => ({[propertyKey]:{
 				get [`$${opName}`]() {
-					return objBuilder === null ? prop.valueMap.get(modelWhere) : objBuilder(modelWhere);
+					return prop.valueMap.get(modelWhere)
 				}
-			})
+			}}) : (modelWhere: ModelWhere) => {
+				const obj = objBuilder(modelWhere);
+
+				return ({[propertyKey]:{
+					[`$${opName}`]: obj[propertyKey]
+				}})
+			}
 
 			return {
 				set: function (val: any) {
@@ -56,6 +109,7 @@ class ModelWhere {
 	static Lt = ModelWhere.Op('lt');
 	static Ge = ModelWhere.Op('ge');
 	static Le = ModelWhere.Op('le');
+	static Ref = ModelWhere.Op('ref');
 	
 	static query = function(modelWhere: ModelWhere) {
 		return modelWhere[QuerySymbol];
