@@ -1,7 +1,6 @@
 "use strict";
-var _a, _b, _c;
+var _a, _b, _c, _d;
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.Model = void 0;
 const tslib_1 = require("tslib");
 const eventemitter3_1 = tslib_1.__importDefault(require("eventemitter3"));
 const InfoSymbol = Symbol('Data');
@@ -18,7 +17,7 @@ class Model {
         this[_b] = null;
         this[_c] = new eventemitter3_1.default();
     }
-    *[(_a = StoredDataSymbol, _b = CurrentDataSymbol, _c = ChangeEventSymbol, Symbol.iterator)]() {
+    *[(_a = StoredDataSymbol, _b = CurrentDataSymbol, _c = ChangeEventSymbol, _d = PropsInfoSymbol, Symbol.iterator)]() {
         let value = 0;
         for (let i = value; i < this[StoredDataSymbol].length; value !== undefined ? i = value : i++) {
             const cpObj = Object.assign(Object.create(Object.getPrototypeOf(this)), this);
@@ -29,22 +28,23 @@ class Model {
         }
     }
 }
-exports.Model = Model;
 Model.InfoData = InfoSymbol;
 Model.StoredData = StoredDataSymbol;
 Model.CurrentData = CurrentDataSymbol;
 Model.ChangeEvent = ChangeEventSymbol;
 Model.PropsInfo = PropsInfoSymbol;
+Model[_d] = {};
+Model.Props = function (...args) {
+    if (args.length == 0) {
+        return Object.assign({}, this[PropsInfoSymbol]);
+    }
+    return Object.fromEntries(args.map((value) => [value, this[PropsInfoSymbol][value]]));
+};
 Model.Prop = function (propInfo = {}) {
     return function (target, propertyKey, _propertyDescriptor) {
         propInfo = Object.assign({ name: propertyKey }, propInfo);
         const propName = propInfo['name'] !== undefined && typeof propInfo['name'] === 'string' ? propInfo['name'] : propertyKey;
-        let props = target.constructor[PropsInfoSymbol] || Object.defineProperty(target.constructor, PropsInfoSymbol, {
-            value: {},
-            enumerable: false,
-            configurable: true,
-            writable: true,
-        })[PropsInfoSymbol];
+        let props = target.constructor[PropsInfoSymbol];
         if (props === Object.getPrototypeOf(target.constructor)[PropsInfoSymbol]) {
             props = Object.assign({}, props);
             target.constructor[PropsInfoSymbol] = props;
@@ -59,7 +59,10 @@ Model.Prop = function (propInfo = {}) {
             },
             get: function () {
                 const currentData = modelBuildData(this);
-                return currentData[propName] || (propInfo['defaultValue'] !== undefined ? propInfo['defaultValue'] : undefined);
+                if (propName in currentData && currentData[propName] !== undefined) {
+                    return currentData[propName];
+                }
+                return propInfo['defaultValue'] !== undefined ? propInfo['defaultValue'] : undefined;
             },
             enumerable: true,
             configurable: true
@@ -68,20 +71,20 @@ Model.Prop = function (propInfo = {}) {
 };
 Model.Data = function (data, info) {
     return function (constructor) {
-        var _d, _e, _f, _g;
+        var _e, _f, _g, _h;
         const storeData = Array.isArray(data) ? data : data();
-        const rConstructor = (_g = class extends constructor {
+        const rConstructor = (_h = class extends constructor {
                 constructor() {
                     super(...arguments);
-                    this[_d] = storeData;
-                    this[_e] = storeData.length > 0 ? storeData[0] : null;
-                    this[_f] = new eventemitter3_1.default();
+                    this[_e] = storeData;
+                    this[_f] = storeData.length > 0 ? storeData[0] : null;
+                    this[_g] = new eventemitter3_1.default();
                 }
             },
-            _d = StoredDataSymbol,
-            _e = CurrentDataSymbol,
-            _f = ChangeEventSymbol,
-            _g);
+            _e = StoredDataSymbol,
+            _f = CurrentDataSymbol,
+            _g = ChangeEventSymbol,
+            _h);
         info && Object.defineProperty(rConstructor.prototype, InfoSymbol, {
             value: info,
             enumerable: false,

@@ -6,28 +6,29 @@ const WhereInfoSymbol = Symbol('WhereInfoSymbol');
 const PropInfoSymbol = Symbol('WherePropInfoSymbol');
 const QuerySymbol = Symbol('QuerySymbol');
 
-class ModelWhere {
+export class ModelWhere {
 	static [WhereInfoSymbol]: { props: {[key:string]: any}; } = { props: {} };
     static [PropInfoSymbol]: { [key:string]: any } = { };
-	[QuerySymbol]: { [key:string]: any; } = ModelWhere.AllFields(this, 'and');
+	[QuerySymbol]: { [key:string]: any; } = ModelWhere.AllFields.call(this.constructor as typeof ModelWhere, this, 'and');
 
 	static AllFields = function(this: typeof ModelWhere, currentWhere: ModelWhere, op: string) {
 		const currentClass = this;
-		
+
 		return ({
 			[`$${op}`]:
 				Object.values(currentClass[PropInfoSymbol]).map(value => value.objBuilder(currentWhere))
 		});
 	}
 
-	static Class = function(this: typeof ModelWhere, options: {[key:string]: any} = {}) {
+	static Class = function(options: {[key:string]: any} = {}) {
 		let {op} = options;
 		op = op || 'and';
 		return function <T extends { new (...args: any[]): ModelWhere }>(
 			constructor: T
 		) {
-			return class extends constructor {
-				[QuerySymbol]: { [key:string]: any; } = ModelWhere.AllFields(this, op);
+			return class ModelClass extends constructor {
+				static [WhereInfoSymbol]: { props: {[key:string]: any}; } = { props: {} };
+				[QuerySymbol]: { [key:string]: any; } = ModelWhere.AllFields.call(this.constructor as typeof ModelWhere, this, op);
 			};
 		}
 	}
@@ -71,7 +72,8 @@ class ModelWhere {
 			target: Object, 
 			propertyKey: string
 		): any {
-			const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
+			const WhereInfo = Object.getPrototypeOf(target.constructor)[PropInfoSymbol] !== (target.constructor as typeof ModelWhere)[PropInfoSymbol] ?
+								(target.constructor as typeof ModelWhere)[PropInfoSymbol] : ((target.constructor as typeof ModelWhere)[PropInfoSymbol] = {});
 			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
 			const objBuilder = prop.objBuilder;
 			prop.objBuilder = objBuilder === null ? (modelWhere: ModelWhere) => ({[propertyKey]:{
@@ -115,7 +117,8 @@ class ModelWhere {
 			target: Object, 
 			propertyKey: string
 		): any {
-			const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
+			const WhereInfo = Object.getPrototypeOf(target.constructor)[PropInfoSymbol] !== (target.constructor as typeof ModelWhere)[PropInfoSymbol] ?
+								(target.constructor as typeof ModelWhere)[PropInfoSymbol] : ((target.constructor as typeof ModelWhere)[PropInfoSymbol] = {});
 			const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
 			const objBuilder = prop.objBuilder;
 			
@@ -140,15 +143,13 @@ class ModelWhere {
 		target: Object, 
 		propertyKey: string
 	): any {
-		const WhereInfo = (target.constructor as typeof ModelWhere)[PropInfoSymbol];
+		const WhereInfo = Object.getPrototypeOf(target.constructor)[PropInfoSymbol] !== (target.constructor as typeof ModelWhere)[PropInfoSymbol] ?
+								(target.constructor as typeof ModelWhere)[PropInfoSymbol] : ((target.constructor as typeof ModelWhere)[PropInfoSymbol] = {});
 		const prop = WhereInfo[propertyKey] || (WhereInfo[propertyKey] = { objBuilder: null, valueMap: new WeakMap() });
 		const objBuilder = prop.objBuilder;
 
 		if (objBuilder === null) {
-			prop.objBuilder = (modelWhere: ModelWhere) =>{
-				console.log(modelWhere)
-				 return prop.valueMap.get(modelWhere) ? prop.valueMap.get(modelWhere)[QuerySymbol] : {};
-			}
+			prop.objBuilder = (modelWhere: ModelWhere) => prop.valueMap.get(modelWhere) ? prop.valueMap.get(modelWhere)[QuerySymbol] : {}
 		}
 		
 		return {

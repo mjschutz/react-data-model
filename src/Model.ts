@@ -12,7 +12,7 @@ const CurrentDataSymbol = Symbol('CurrentData');
 const ChangeEventSymbol = Symbol('ChangeEvent');
 const PropsInfoSymbol = Symbol('PropsInfo');
 
-const modelBuildData = (model: Model): GenericObject} => {
+const modelBuildData = (model: Model): GenericObject => {
 	return model[CurrentDataSymbol] = model[CurrentDataSymbol] || (model[StoredDataSymbol].length > 0 ? model[StoredDataSymbol][0] : {});
 }
 
